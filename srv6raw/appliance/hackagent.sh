@@ -169,69 +169,44 @@ fi
 
 if [ "$NODE_ROLE" = "master" ]; then
     # Masters: bootstrap MCS ignition already fetched above — use it directly.
-
-    log "Converting master ignition to spec v3..."
-    if podman run --privileged --rm -v /tmp:/tmp "$CONVERTER_IMAGE" -input "$MASTER_IGN_FILE" -output "${MASTER_IGN_FILE%.ign}-v3.ign" 2>&1 | tee -a "$LOG_FILE"; then
-        mv "${MASTER_IGN_FILE%.ign}-v3.ign" "$MASTER_IGN_FILE"
-        log "Successfully converted master ignition to v3"
-    else
-        log "ERROR: Failed to convert master ignition to v3"
-        exit 1
-    fi
-
-    log "Building master ignition..."
-    if [ -n "$HOSTNAME_CONFIG" ]; then
-        jq --argjson hostname "$HOSTNAME_CONFIG" --arg version "$IGN_VERSION" '
-            .ignition.version = $version |
-            .storage.files = (
-                [.storage.files[]? | select(.path != "/etc/hostname")] + [$hostname]
-            )
-        ' "$MASTER_IGN_FILE" > "$IGN_FILE"
-    else
-        jq --arg version "$IGN_VERSION" '.ignition.version = $version' \
-            "$MASTER_IGN_FILE" > "$IGN_FILE"
-    fi
+    MCS_IGN_FILE="$MASTER_IGN_FILE"
 else
-    # Workers: fetch master MCS ignition from the bootstrap MCS early (reachable
-    # via direct L2 while bootstrap is running) then merge with the local worker
-    # ignition which has node-specific certs, kubeconfig and hostname.
-    # FRR does not run on workers in the live ISO (OVS blocks can_start.sh), so
-    # the production MCS at the API VIP is not reachable — bootstrap MCS is.
-    log "Fetching master ignition from bootstrap MCS for worker merge..."
+    # Workers: wait for the production MCS at the API VIP, fetch the worker
+    # ignition, then inject the hostname from the local agent ignition.
+    MCS_IGN_FILE="/tmp/worker-mcs.ign"
+    log "Waiting for production MCS worker ignition at https://192.168.110.10:22623/config/worker..."
     while true; do
-        if curl -k -s --connect-timeout 5 --max-time 30 -o "$MASTER_IGN_FILE" "https://192.168.110.2:22623/config/master" 2>/dev/null && \
-           [ -s "$MASTER_IGN_FILE" ] && jq -e '.ignition.version' "$MASTER_IGN_FILE" >/dev/null 2>&1; then
-            log "Got master ignition from bootstrap MCS ($(wc -c < "$MASTER_IGN_FILE") bytes)"
+        if curl -k -s --connect-timeout 5 --max-time 30 -o "$MCS_IGN_FILE" "https://192.168.110.10:22623/config/worker" 2>/dev/null && \
+           [ -s "$MCS_IGN_FILE" ] && jq -e '.ignition.version' "$MCS_IGN_FILE" >/dev/null 2>&1; then
+            log "Got worker ignition from production MCS ($(wc -c < "$MCS_IGN_FILE") bytes)"
             break
         fi
-        rm -f "$MASTER_IGN_FILE"
-        log "Bootstrap MCS not ready, retrying in 5 s..."
-        sleep 5
+        rm -f "$MCS_IGN_FILE"
+        log "Production MCS not ready, retrying in 10 s..."
+        sleep 10
     done
+fi
 
-    log "Converting master ignition to spec v3..."
-    if podman run --privileged --rm -v /tmp:/tmp "$CONVERTER_IMAGE" -input "$MASTER_IGN_FILE" -output "${MASTER_IGN_FILE%.ign}-v3.ign" 2>&1 | tee -a "$LOG_FILE"; then
-        mv "${MASTER_IGN_FILE%.ign}-v3.ign" "$MASTER_IGN_FILE"
-        log "Successfully converted master ignition to v3"
-    else
-        log "ERROR: Failed to convert master ignition to v3"
-        exit 1
-    fi
+log "Converting ${NODE_ROLE} ignition to spec v3..."
+if podman run --privileged --rm -v /tmp:/tmp "$CONVERTER_IMAGE" -input "$MCS_IGN_FILE" -output "${MCS_IGN_FILE%.ign}-v3.ign" 2>&1 | tee -a "$LOG_FILE"; then
+    mv "${MCS_IGN_FILE%.ign}-v3.ign" "$MCS_IGN_FILE"
+    log "Successfully converted ${NODE_ROLE} ignition to v3"
+else
+    log "ERROR: Failed to convert ${NODE_ROLE} ignition to v3"
+    exit 1
+fi
 
-    log "Building worker ignition: local base + master FRR/quadlet additions..."
-    jq -s --arg version "$IGN_VERSION" '
-        .[0] as $worker | .[1] as $master |
-        ($worker.storage.files // [] | map(.path)) as $workerPaths |
-        ($worker.systemd.units // [] | map(.name)) as $workerUnits |
-        $worker |
+log "Building ${NODE_ROLE} ignition..."
+if [ -n "$HOSTNAME_CONFIG" ]; then
+    jq --argjson hostname "$HOSTNAME_CONFIG" --arg version "$IGN_VERSION" '
         .ignition.version = $version |
-        .storage.files = (.storage.files +
-            [$master.storage.files[]? |
-             select(.path as $p | $workerPaths | index($p) | not)]) |
-        .systemd.units = ((.systemd.units // []) +
-            [$master.systemd.units[]? |
-             select(.name as $n | $workerUnits | index($n) | not)])
-    ' "$LOCAL_IGN_FILE" "$MASTER_IGN_FILE" > "$IGN_FILE"
+        .storage.files = (
+            [.storage.files[]? | select(.path != "/etc/hostname")] + [$hostname]
+        )
+    ' "$MCS_IGN_FILE" > "$IGN_FILE"
+else
+    jq --arg version "$IGN_VERSION" '.ignition.version = $version' \
+        "$MCS_IGN_FILE" > "$IGN_FILE"
 fi
 
 if [ $? -ne 0 ] || ! jq -e '.ignition.version' "$IGN_FILE" >/dev/null 2>&1; then
