@@ -1,9 +1,9 @@
 variant: openshift
 version: 4.20.0
 metadata:
-  name: 01-worker-registry
+  name: 01-master-registry
   labels:
-    machineconfiguration.openshift.io/role: worker
+    machineconfiguration.openshift.io/role: master
 storage:
   files:
     - path: /etc/assisted/registry.env
