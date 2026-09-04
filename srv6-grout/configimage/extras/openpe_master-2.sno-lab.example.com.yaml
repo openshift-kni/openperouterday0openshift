@@ -53,11 +53,20 @@ underlays:
           interfaceName: eno12399v0  # TODO: avoid referencing the VF netlink name here
           acceleratedConfig:
             portName: underlay0
+    
     neighbors:
       - type: Internal
-        address: "fc00:100::2"  # master-0 (RR)
+        address: "10.0.0.2"  # master-0 (RR)
+        addressFamilies:
+          - type: ipv4unicast
+          - type: ipv6unicast
+          - type: evpn
       - type: Internal
-        address: "10.0.0.2"  # master-2 (RR)
+        address: "fc00:100::2"  # master-0 (RR)
+        addressFamilies:
+          - type: ipv4vpn
+          - type: ipv6vpn
+
     tunnelEndpoint:
       cidrs:
         - "10.0.0.0/24"
