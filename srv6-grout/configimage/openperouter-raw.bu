@@ -147,7 +147,7 @@ systemd:
       enabled: true
       contents: |
         [Slice]
-        AllowedCPUs=0,1,20,21
+        AllowedCPUs=0-6
         [Install]
         WantedBy=default.target
 

@@ -12,7 +12,6 @@ KUBECONFIG="${KUBECONFIG:-/etc/kubernetes/static-pod-resources/kube-apiserver-ce
 export KUBECONFIG
 
 source /etc/openperouter/openperouter.env
-source /var/lib/openperouter/vpn-setup.vars
 
 # Write system CPU list for the reservation pod to use as control CPUs.
 grep Cpus_allowed_list /proc/1/status | cut -f2 > /etc/openperouter/system-cpus
@@ -31,6 +30,8 @@ for f in "$MANIFEST_DIR"/*.yaml; do
 		-e "s/__GROUT_CPUS__/$GROUT_CPUS/g" \
 		-e "s/__GROUT_HUGEPAGES_1G__/$GROUT_HUGEPAGES_1G/g" \
 		"$f" > "$TMPDIR/$(basename "$f")"
+	
+	echo "$TMPDIR/$(basename "$f")"
 done
 
 echo "apply-manifests: applying manifests from $MANIFEST_DIR"
