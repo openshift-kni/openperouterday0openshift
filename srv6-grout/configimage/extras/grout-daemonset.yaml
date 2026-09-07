@@ -23,7 +23,7 @@ spec:
       # Never evict this pod — grout depends on the CPU reservation.
       priorityClassName: system-node-critical
       nodeSelector:
-        openperouter.io/role: router
+        kubernetes.io/os: linux
       tolerations:
       - operator: Exists
       hostPID: true
@@ -47,7 +47,7 @@ spec:
 
           echo "Waiting for grout..."
           until grcli -e </dev/null >/dev/null 2>&1; do
-              sleep 1
+              sleep 10
           done
           echo "Grout is ready"
 

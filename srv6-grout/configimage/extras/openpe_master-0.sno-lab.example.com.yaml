@@ -57,8 +57,6 @@ underlays:
       - type: Internal
         address: "fc00:0:14::1"
       - type: Internal
-        address: "10.0.0.20"
-      - type: Internal
         listenRange: 10.0.0.0/24
         addressFamilies: 
           - type: ipv4unicast
@@ -68,15 +66,6 @@ underlays:
             properties:
               - type: routeReflectorClient
           - type: evpn
-            properties:
-              - type: routeReflectorClient
-      - type: Internal
-        listenRange: fc00::/16
-        addressFamilies:
-          - type: ipv4vpn
-            properties:
-              - type: routeReflectorClient
-          - type: ipv6vpn
             properties:
               - type: routeReflectorClient
     tunnelEndpoint:

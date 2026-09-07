@@ -62,10 +62,7 @@ underlays:
           - type: ipv6unicast
           - type: evpn
       - type: Internal
-        address: "fc00:100::2"  # master-0 (RR)
-        addressFamilies:
-          - type: ipv4vpn
-          - type: ipv6vpn
+        address: "fc00:0:14::1"
 
     tunnelEndpoint:
       cidrs:

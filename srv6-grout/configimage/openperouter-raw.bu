@@ -175,6 +175,17 @@ systemd:
 
         [Install]
         WantedBy=multi-user.target
+
+    - name: perouter-restart-pods.service
+      enabled: false
+      contents: |
+        [Unit]
+        Description=Restart All the PERouter pods
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/systemctl restart controllerpod-pod.service routerpod-pod.service
+
     # --- Watch for kubeconfig and trigger manifest apply ---
     - name: apply-manifests.path
       enabled: true

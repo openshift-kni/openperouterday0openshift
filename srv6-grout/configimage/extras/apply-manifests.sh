@@ -35,7 +35,7 @@ for f in "$MANIFEST_DIR"/*.yaml; do
 done
 
 echo "apply-manifests: applying manifests from $MANIFEST_DIR"
-echo "  NODE_NAME=$NODE_NAME"
+#echo "  NODE_NAME=$NODE_NAME"
 echo "  GROUT_CPUS=$GROUT_CPUS"
 echo "  GROUT_HUGEPAGES_1G=$GROUT_HUGEPAGES_1G"
 
@@ -43,6 +43,6 @@ oc apply -f "$TMPDIR/namespace.yaml"
 oc adm policy add-scc-to-user privileged -z default -n openperouter-system
 oc apply -f "$TMPDIR/"
 
-oc label node "$NODE_NAME" openperouter.io/role=router --overwrite
+#oc label node "$NODE_NAME" openperouter.io/role=router --overwrite
 
 echo "apply-manifests: done"

@@ -4,6 +4,7 @@ After=dev-hugepages.mount nmstate.service
 Requires=dev-hugepages.mount
 Wants=nmstate.service
 ConditionPathExists=/dev/hugepages
+OnFailure=perouter-restart-pods.service
 
 [Container]
 Image=quay.io/redhat-user-workloads/telco-5g-tenant/openperouter-operator-edge-5-0:on-pr-0d2e4d06a6c504b2a487022abfea66b370fa657a 
