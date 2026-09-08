@@ -7,7 +7,7 @@ ConditionPathExists=/dev/hugepages
 OnFailure=perouter-restart-pods.service
 
 [Container]
-Image=quay.io/redhat-user-workloads/telco-5g-tenant/openperouter-operator-edge-5-0:on-pr-0d2e4d06a6c504b2a487022abfea66b370fa657a 
+Image=quay.io/redhat-user-workloads/telco-5g-tenant/openperouter-operator-edge-5-0:on-pr-4ce8bce452201b29c259cbf37e1fe460aa305239 
 ContainerName=grout
 Pod=routerpod.pod
 Notify=true
@@ -32,8 +32,9 @@ HealthOnFailure=none
 [Service]
 Slice=grout.slice
 EnvironmentFile=/etc/openperouter/openperouter.env
-Restart=on-failure
-RestartSec=10
+# Use OnFailure=
+Restart=no
+
 
 [Install]
 WantedBy=default.target

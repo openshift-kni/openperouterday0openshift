@@ -46,5 +46,13 @@ while true; do
 		#podman exec grout grcli ping "$vip" vrf red count 1 >/dev/null 2>&1 || true
 		ping -c 1 "$vip" >/dev/null || true
 	done
+
+    # Detect failed nexthops and clear them, like
+	# main      learn   underlay0  L3          family=ipv4 addr=192.168.110.2 state=failed flags=neigh
+	failed=$(podman exec grout grcli nexthop show vrf main | grep failed || true)
+	if [ -n "$failed" ]; then
+		echo "Failed nexthops: $failed"
+		#podman exec grout grcli nexthop flush origin learn
+	fi
 	sleep "$REFRESH_INTERVAL"
 done

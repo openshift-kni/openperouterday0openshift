@@ -158,8 +158,8 @@ systemd:
         [Unit]
         Description=OpenPERouter Bridge Refresher
         Documentation=https://github.com/openperouter/openperouter
-        After=setup-network.service generate-config.service
-        Requires=setup-network.service
+        After=routerpod.service 
+        Requires=routerpod.service.service
 
         [Service]
         Type=simple

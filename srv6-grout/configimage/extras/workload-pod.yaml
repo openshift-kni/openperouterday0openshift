@@ -15,27 +15,47 @@ spec:
   terminationGracePeriodSeconds: 10
   containers:
   - name: workload
-    image: quay.io/redhat-user-workloads/telco-5g-tenant/openperouter-operator-edge-5-0:on-pr-0d2e4d06a6c504b2a487022abfea66b370fa657a
+    image: quay.io/redhat-user-workloads/telco-5g-tenant/openperouter-operator-edge-5-0:on-pr-4ce8bce452201b29c259cbf37e1fe460aa305239
     command: ["/bin/bash", "-c"]
     args:
     - |
-      echo "=== Environment Variables ==="
-      env | sort
-      echo ""
-      echo "=== Available CPUs (cpuset) ==="
-      CGROUP=$(cat /proc/self/cgroup | grep -oP '(?<=::).*')
-      echo "cgroup: $CGROUP"
-      cat /sys/fs/cgroup"$CGROUP"/cpuset.cpus.effective 2>/dev/null \
-        || cat /sys/fs/cgroup/cpuset.cpus.effective 2>/dev/null \
-        || echo "cpuset info not available via cgroup"
-      echo ""
-      echo "=== /proc/self/status (CPU affinity) ==="
-      grep -i cpu /proc/self/status
-      echo ""
-      echo "=== Hugepages from /proc/meminfo ==="
-      grep -i huge /proc/meminfo
-      echo ""
-      echo "Workload pod ready — sleeping forever"
+      set -euo pipefail
+      set -a
+      source /etc/openperouter/openperouter.env
+      set +a
+
+      echo "Waiting for grout..."
+      until grcli -e </dev/null >/dev/null 2>&1; do
+          sleep 10
+      done
+      echo "Grout is ready"
+
+      # Read the exclusive CPUs assigned to this container by kubelet.
+      # In a privileged container, /sys/fs/cgroup/cpuset.cpus.effective
+      # reflects the parent cgroup (all host CPUs). Read from the
+      # container's own cgroup path to get the guaranteed CPUs.
+      CGROUP=$(cat /proc/self/cgroup | cut -d: -f3)
+      DATAPATH=$(cat /sys/fs/cgroup"$CGROUP"/cpuset.cpus)
+
+      # Read control CPUs from PID 1's affinity (set by systemd.cpu_affinity).
+      CONTROL=$(cat /etc/openperouter/system-cpus)
+
+      # Expand grout.slice to include both reserved and pod-guaranteed CPUs.
+      echo "Updating grout.slice: AllowedCPUs=$CONTROL,$DATAPATH"
+      nsenter -t 1 -m -u -p -- \
+          systemctl --runtime set-property grout.slice AllowedCPUs="$CONTROL,$DATAPATH"
+
+      # Force destroy and recreate datapath threads. The performance
+      # profile may have repinned them and grout will not recreate
+      # existing threads.
+      date
+      echo "Repinning grout: datapath=$DATAPATH control=$CONTROL"
+      # TODO: re-enable CPU pinnging when https://github.com/DPDK/grout/pull/672 is merged
+      #grcli affinity cpus set control 0 datapath 1
+      #grcli affinity cpus set control "$CONTROL" datapath "$DATAPATH"
+      date
+
+      echo "Reservation active"
       exec sleep infinity
     securityContext:
       privileged: true
@@ -51,7 +71,25 @@ spec:
     volumeMounts:
     - name: hugepages
       mountPath: /dev/hugepages
+    - name: grout-sock
+      mountPath: /run/grout
+    - name: openperouter-config
+      mountPath: /etc/openperouter
+      readOnly: true
+    - name: perouter-config
+      mountPath: /etc/perouter
   volumes:
+  - name: grout-sock
+    hostPath:
+      path: /run/grout
+      type: DirectoryOrCreate
+  - name: openperouter-config
+    hostPath:
+      path: /etc/openperouter
+  - name: perouter-config
+    hostPath:
+      path: /etc/perouter
+      type: DirectoryOrCreate
   - name: hugepages
     emptyDir:
       medium: HugePages-1Gi

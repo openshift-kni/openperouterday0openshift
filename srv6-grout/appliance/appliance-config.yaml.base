@@ -7,7 +7,7 @@ diskSizeGB: 200
 userCorePass: core
 stopLocalRegistry: false
 additionalImages:
-  - name: quay.io/redhat-user-workloads/telco-5g-tenant/openperouter-operator-edge-5-0:on-pr-0d2e4d06a6c504b2a487022abfea66b370fa657a 
+  - name: quay.io/redhat-user-workloads/telco-5g-tenant/openperouter-operator-edge-5-0:on-pr-4ce8bce452201b29c259cbf37e1fe460aa305239 
   - name: quay.io/mavazque/ign-converter:latest
   - name: registry.redhat.io/rhel9/support-tools:latest
   - name: docker.io/alpine/socat:latest
