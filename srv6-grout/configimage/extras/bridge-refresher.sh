@@ -41,18 +41,33 @@ grcli() {
 echo "Bridge refresher started (interval=${REFRESH_INTERVAL}s, bridge=${BRIDGE_NAME})"
 echo "  VIPs: $API_VIP, $INGRESS_VIP"
 
+set -x
+
 while true; do
 	for vip in "$API_VIP" "$INGRESS_VIP"; do
 		#podman exec grout grcli ping "$vip" vrf red count 1 >/dev/null 2>&1 || true
 		ping -c 1 "$vip" >/dev/null || true
 	done
 
-    # Detect failed nexthops and clear them, like
-	# main      learn   underlay0  L3          family=ipv4 addr=192.168.110.2 state=failed flags=neigh
-	failed=$(podman exec grout grcli nexthop show vrf main | grep failed || true)
-	if [ -n "$failed" ]; then
-		echo "Failed nexthops: $failed"
-		#podman exec grout grcli nexthop flush origin learn
+    # Detect inactive local ARP entries
+	# master-0.sno-lab.example.com# show evpn arp-cache vni 210
+	# Number of ARPs (local and remote) known for this VNI: 10
+	# Flags: I=local-inactive, P=peer-active, X=peer-proxy
+	# Neighbor                  Type   Flags State    MAC               Remote ES/VTEP                          Seq #'s
+	# fd00:110::3               remote       active   fa:a8:b4:6c:c0:7e 10.0.0.3                                0/0
+	# 192.168.110.2             local        inactive c6:11:d0:35:9d:1d                                         0/0
+	# fe80::7c2a:cfff:fe06:3bac remote       active   7e:2a:cf:06:3b:ac 10.0.0.4                                0/0
+	# fd00:110::2               local        inactive c6:11:d0:35:9d:1d                                         0/0
+	# 192.168.110.3             remote       active   fa:a8:b4:6c:c0:7e 10.0.0.3                                0/0
+	# fe80::c411:d0ff:fe35:9d1d local        inactive c6:11:d0:35:9d:1d                                         0/0
+	# 192.168.110.10            remote       active   7e:2a:cf:06:3b:ac 10.0.0.4                                0/0
+	# 
+	# see https://github.com/DPDK/grout/issues/741
+
+	if podman exec frr vtysh -c "show evpn arp-cache vni ${L2_VNI}" 2>/dev/null | grep " inactive" >/dev/null; then
+		echo "Inactive ARP cache, flushing"
+		podman exec grout grcli fdb flush
 	fi
+
 	sleep "$REFRESH_INTERVAL"
 done

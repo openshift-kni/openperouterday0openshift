@@ -57,7 +57,7 @@ underlays:
       - type: Internal
         address: "fc00:0:14::1"
       - type: Internal
-        listenRange: 10.0.0.0/24
+        listenRange: fc00:100::0/112
         addressFamilies: 
           - type: ipv4unicast
             properties:
@@ -70,7 +70,6 @@ underlays:
               - type: routeReflectorClient
     tunnelEndpoint:
       cidrs:
-        - "10.0.0.0/24"
         - "fc00:100::0/112"
     isis:
       baseNet: "49.0001.0000.0000.0001.00"

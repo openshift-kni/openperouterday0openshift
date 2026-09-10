@@ -13,17 +13,16 @@ spec:
   priorityClassName: system-node-critical
   runtimeClassName: performance-grout-performance
   terminationGracePeriodSeconds: 10
+  hostPID: true
   containers:
-  - name: workload
+  - name: control-shape
     image: quay.io/redhat-user-workloads/telco-5g-tenant/openperouter-operator-edge-5-0:on-pr-4ce8bce452201b29c259cbf37e1fe460aa305239
-    command: ["/bin/bash", "-c"]
+    env:
+    - name: GROUT_SOCK_PATH
+      value: /run/grout/grout.sock
+    command: ["/bin/bash", "-xc"]
     args:
     - |
-      set -euo pipefail
-      set -a
-      source /etc/openperouter/openperouter.env
-      set +a
-
       echo "Waiting for grout..."
       until grcli -e </dev/null >/dev/null 2>&1; do
           sleep 10
@@ -34,29 +33,73 @@ spec:
       # In a privileged container, /sys/fs/cgroup/cpuset.cpus.effective
       # reflects the parent cgroup (all host CPUs). Read from the
       # container's own cgroup path to get the guaranteed CPUs.
+      #CGROUP=$(cat /proc/self/cgroup | cut -d: -f3)
+      #CONTROL=$(cat /sys/fs/cgroup"$CGROUP"/cpuset.cpus)
+      
+      echo "Waiting for /shared/datapath.txt to be present..."
+      while [ ! -f /shared/datapath.txt ]; do
+        sleep 1
+      done
+      DATAPATH=$(cat /shared/datapath.txt)
+
+      while true; do
+        sleep 2
+
+        CONTROL_CURRENT=$(grcli affinity cpus show | grep control | awk '{print $2}')
+        if [ -n "$CONTROL" ]; then
+          break
+        fi
+        #CONTROL_TARGET=$(grep -i Cpus_allowed_list /proc/1/status | awk '{print $2}')
+        CONTROL_TARGET=$(grep -oP 'systemd\.cpu_affinity=\K\S+' /proc/cmdline)
+        
+        if [ "$CONTROL_CURRENT" != "$CONTROL_TARGET" ]; then
+          date
+
+          echo "Control CPU affinity mismatch: $CONTROL_CURRENT != $CONTROL_TARGET"
+
+          # Expand grout.slice to include both reserved and pod-guaranteed CPUs.
+          echo "Updating grout.slice: AllowedCPUs=$CONTROL_TARGET,$DATAPATH"
+          nsenter -t 1 -m -u -p -- \
+            systemctl --runtime set-property grout.slice AllowedCPUs="$CONTROL_TARGET,$DATAPATH"
+
+          echo "Repinning grout: datapath=$DATAPATH control=$CONTROL_TARGET"
+
+          grcli affinity cpus show
+          #grcli affinity cpus set control "$CONTROL_TARGET" datapath "$DATAPATH"
+        fi
+
+      done
+      
+      exec sleep infinity
+    securityContext:
+      privileged: true
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "100Mi"
+      limits:
+        cpu: "100m"
+        memory: "100Mi"
+    volumeMounts:
+    - name: grout-sock
+      mountPath: /run/grout
+    - name: shared-data
+      mountPath: /shared
+  - name: datapath-shape
+    image: quay.io/redhat-user-workloads/telco-5g-tenant/openperouter-operator-edge-5-0:on-pr-4ce8bce452201b29c259cbf37e1fe460aa305239
+    command: ["/bin/bash", "-xc"]
+    args:
+    - |
+      # Read the exclusive CPUs assigned to this container by kubelet.
+      # In a privileged container, /sys/fs/cgroup/cpuset.cpus.effective
+      # reflects the parent cgroup (all host CPUs). Read from the
+      # container's own cgroup path to get the guaranteed CPUs.
+      date
       CGROUP=$(cat /proc/self/cgroup | cut -d: -f3)
       DATAPATH=$(cat /sys/fs/cgroup"$CGROUP"/cpuset.cpus)
-
-      # Read control CPUs from PID 1's affinity (set by systemd.cpu_affinity).
-      CONTROL=$(cat /etc/openperouter/system-cpus)
-
-      # Expand grout.slice to include both reserved and pod-guaranteed CPUs.
-      echo "Updating grout.slice: AllowedCPUs=$CONTROL,$DATAPATH"
-      nsenter -t 1 -m -u -p -- \
-          systemctl --runtime set-property grout.slice AllowedCPUs="$CONTROL,$DATAPATH"
-
-      # Force destroy and recreate datapath threads. The performance
-      # profile may have repinned them and grout will not recreate
-      # existing threads.
-      date
-      echo "Repinning grout: datapath=$DATAPATH control=$CONTROL"
-      # TODO: re-enable CPU pinnging when https://github.com/DPDK/grout/pull/672 is merged
-      #grcli affinity cpus set control 0 datapath 1
-      #grcli affinity cpus set control "$CONTROL" datapath "$DATAPATH"
-      date
-
-      echo "Reservation active"
+      echo $DATAPATH > /shared/datapath.txt
       exec sleep infinity
+      
     securityContext:
       privileged: true
     resources:
@@ -71,24 +114,14 @@ spec:
     volumeMounts:
     - name: hugepages
       mountPath: /dev/hugepages
-    - name: grout-sock
-      mountPath: /run/grout
-    - name: openperouter-config
-      mountPath: /etc/openperouter
-      readOnly: true
-    - name: perouter-config
-      mountPath: /etc/perouter
+    - name: shared-data
+      mountPath: /shared
   volumes:
+  - name: shared-data
+    emptyDir: {}
   - name: grout-sock
     hostPath:
       path: /run/grout
-      type: DirectoryOrCreate
-  - name: openperouter-config
-    hostPath:
-      path: /etc/openperouter
-  - name: perouter-config
-    hostPath:
-      path: /etc/perouter
       type: DirectoryOrCreate
   - name: hugepages
     emptyDir:
