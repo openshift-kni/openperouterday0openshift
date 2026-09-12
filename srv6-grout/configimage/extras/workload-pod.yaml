@@ -5,10 +5,10 @@ metadata:
   labels:
     app: openperouter
     component: workload-test
-  annotations:
-    cpu-quota.crio.io: "disable"
-    cpu-load-balancing.crio.io: "disable"
-    irq-load-balancing.crio.io: "disable"
+#  annotations:
+#    cpu-quota.crio.io: "disable"
+#    cpu-load-balancing.crio.io: "disable"
+#    irq-load-balancing.crio.io: "disable"
 spec:
   priorityClassName: system-node-critical
   runtimeClassName: performance-grout-performance
@@ -40,32 +40,40 @@ spec:
       while [ ! -f /shared/datapath.txt ]; do
         sleep 1
       done
-      DATAPATH=$(cat /shared/datapath.txt)
+      DATAPATH_TARGET=$(cat /shared/datapath.txt)
 
       while true; do
         sleep 2
 
         CONTROL_CURRENT=$(grcli affinity cpus show | grep control | awk '{print $2}')
-        if [ -n "$CONTROL" ]; then
-          break
-        fi
-        #CONTROL_TARGET=$(grep -i Cpus_allowed_list /proc/1/status | awk '{print $2}')
+        DATAPATH_CURRENT=$(grcli affinity cpus show | grep datapath | awk '{print $2}')
         CONTROL_TARGET=$(grep -oP 'systemd\.cpu_affinity=\K\S+' /proc/cmdline)
-        
+        if [ -z "$CONTROL_TARGET" ]; then
+          echo "No control target found in /proc/cmdline"
+          sleep 100
+          continue
+        fi
+
         if [ "$CONTROL_CURRENT" != "$CONTROL_TARGET" ]; then
           date
 
           echo "Control CPU affinity mismatch: $CONTROL_CURRENT != $CONTROL_TARGET"
 
           # Expand grout.slice to include both reserved and pod-guaranteed CPUs.
-          echo "Updating grout.slice: AllowedCPUs=$CONTROL_TARGET,$DATAPATH"
+          echo "Updating grout.slice: AllowedCPUs=$CONTROL_TARGET,$DATAPATH_TARGET"
           nsenter -t 1 -m -u -p -- \
-            systemctl --runtime set-property grout.slice AllowedCPUs="$CONTROL_TARGET,$DATAPATH"
+            systemctl --runtime set-property grout.slice AllowedCPUs="$CONTROL_TARGET,$DATAPATH_TARGET"
 
-          echo "Repinning grout: datapath=$DATAPATH control=$CONTROL_TARGET"
+          echo "Repinning grout: datapath=$DATAPATH_TARGET control=$CONTROL_TARGET"
 
+          # Force destroy and recreate datapath threads. The performance
+          # profile may have repinned them and grout will not recreate
+          # existing threads.
           grcli affinity cpus show
-          #grcli affinity cpus set control "$CONTROL_TARGET" datapath "$DATAPATH"
+          grcli affinity cpus set control 0 datapath 1
+          grcli affinity cpus show
+          grcli affinity cpus set control "$CONTROL_TARGET" datapath "$DATAPATH_TARGET"
+          grcli affinity cpus show
         fi
 
       done

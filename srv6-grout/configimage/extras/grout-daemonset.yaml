@@ -1,3 +1,4 @@
+### DEPRECATED: Use workload-pod.yaml instead
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -63,8 +64,8 @@ spec:
 
           # Expand grout.slice to include both reserved and pod-guaranteed CPUs.
           echo "Updating grout.slice: AllowedCPUs=$CONTROL,$DATAPATH"
-          nsenter -t 1 -m -u -p -- \
-              systemctl --runtime set-property grout.slice AllowedCPUs="$CONTROL,$DATAPATH"
+          #nsenter -t 1 -m -u -p -- \
+          #    systemctl --runtime set-property grout.slice AllowedCPUs="$CONTROL,$DATAPATH"
 
           # Force destroy and recreate datapath threads. The performance
           # profile may have repinned them and grout will not recreate
