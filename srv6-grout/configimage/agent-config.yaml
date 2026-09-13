@@ -92,6 +92,7 @@ hosts:
     - name: ens1f0v2 # host
       type: ethernet
       state: up
+      mtu: 1430
       ipv4:
         enabled: true
         auto-dns: false
@@ -192,6 +193,7 @@ hosts:
     - name: ens1f0v2 # host
       type: ethernet
       state: up
+      mtu: 1430
       ipv4:
         enabled: true
         auto-dns: false
@@ -291,6 +293,7 @@ hosts:
     - name: eno12399v2 # host
       type: ethernet
       state: up
+      mtu: 1430
       ipv4:
         enabled: true
         auto-dns: false
