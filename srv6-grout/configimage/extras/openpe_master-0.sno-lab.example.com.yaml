@@ -39,8 +39,7 @@ l2vnis:
       - "192.168.110.1/24" # this need to stay /24, so the network is advertised via l3vpn
       - "fd00:110::1/64"
     sriovVFPair:
-      pfName: ens1f0np0
-      vfIndex: 1
+      netlinkName: ens1f0v1
       vlan: 42   # The same as in agent-config.yaml
       acceleratedConfig: {}
 
@@ -50,7 +49,7 @@ underlays:
     interfaces:
       - type: NetworkDevice
         networkDevice:
-          interfaceName: ens1f0v0  # TODO: avoid referencing the VF netlink name here
+          interfaceName: ens1f0v0
           acceleratedConfig:
             portName: underlay0
     neighbors:
