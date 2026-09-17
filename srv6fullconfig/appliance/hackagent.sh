@@ -35,8 +35,6 @@ cat > "$HACK_SCRIPT_FILE" << 'HACKSCRIPT_EOF'
 set -x
 
 LOG_FILE="/tmp/ignition-hack.log"
-URL="https://192.168.110.2:22623/config/master"
-IGN_FILE="/tmp/master-mcs-server.ign"
 LOCAL_IGN_DIR="/opt/install-dir"
 CONVERTER_IMAGE="quay.io/mavazque/ign-converter:latest"
 

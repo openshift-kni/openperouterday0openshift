@@ -21,13 +21,12 @@ rawfrrconfigs:
       log file /etc/frr/frr.log informational
       !
       interface ${UNDERLAY_NIC}
-       ip router isis PE
        ipv6 router isis PE
       exit
       !
       interface lo
-       ip router isis PE
        ipv6 router isis PE
+       isis passive
       exit
       !
       router bgp ${BGP_AS}
@@ -40,17 +39,26 @@ rawfrrconfigs:
        neighbor TOR peer-group
        neighbor TOR remote-as ${BGP_AS}
        neighbor TOR update-source ${LOOPBACK_V6}
+       neighbor TOR capability extended-nexthop
        neighbor ${TOR_LOOPBACK} peer-group TOR
        !
        neighbor EVPN-RR peer-group
        neighbor EVPN-RR remote-as ${BGP_AS}
        neighbor EVPN-RR update-source ${LOOPBACK_V6}
-       neighbor ${RR_LOOPBACK} peer-group EVPN-RR
+       neighbor EVPN-RR capability extended-nexthop
+       neighbor ${RR_LOOPBACK_0} peer-group EVPN-RR
+       neighbor ${RR_LOOPBACK_1} peer-group EVPN-RR
+       neighbor ${RR_LOOPBACK_2} peer-group EVPN-RR
        !
        segment-routing srv6
         locator MAIN
         encap-behavior H_Encaps_Red
        exit
+       !
+       address-family ipv4 unicast
+        network ${ROUTER_ID}/32
+        neighbor EVPN-RR activate
+       exit-address-family
        !
        address-family ipv4 vpn
         neighbor TOR activate
@@ -99,7 +107,6 @@ rawfrrconfigs:
       router isis PE
        is-type level-1
        net ${ISIS_NET}
-       topology ipv6-unicast
        lsp-gen-interval 2
        log-adjacency-changes
        log-pdu-drops

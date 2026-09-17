@@ -1,0 +1,12 @@
+variant: openshift
+version: 4.20.0
+metadata:
+  name: 99-master-mtu
+  labels:
+    machineconfiguration.openshift.io/role: master
+storage:
+  files:
+    - path: /etc/NetworkManager/conf.d/99-br0-mtu.conf
+      contents:
+        local: rawconfig/br0-mtu.conf
+      mode: 0600
