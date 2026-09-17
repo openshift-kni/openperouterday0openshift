@@ -27,23 +27,25 @@ spec:
       date
       CGROUP=$(cat /proc/self/cgroup | cut -d: -f3)
       CPUSET=$(cat /sys/fs/cgroup"$CGROUP"/cpuset.cpus)
-      
-      nsenter -t 1 -m -u -p -- \
-        systemctl --runtime set-property container1.slice AllowedCPUs="$CPUSET"
-
       CONTAINER="container1"
-      HOST_PIDS=$(nsenter -t 1 -m -u -p -- \
-        podman top "$CONTAINER" hpid | tail -n +2)
 
-      for PID in $HOST_PIDS; do
-        echo "Applying taskset to Host PID: $PID"
-        # -a applies to all threads, -p operates on an existing PID, -c specifies CPU list
-        if ! taskset -a -p -c "$CPUSET" "$PID" >/dev/null; then
-            echo "Failed to set affinity for PID $PID (Requires root/sudo?)"
-        fi
+      while true; do
+        date
+        nsenter -t 1 -m -u -p -- \
+          systemctl --runtime set-property ${CONTAINER}.slice AllowedCPUs="$CPUSET"
+  
+        HOST_PIDS=$(nsenter -t 1 -m -u -p -- \
+          podman top "$CONTAINER" hpid | tail -n +2 | grep -v "\?")
+
+        for PID in $HOST_PIDS; do
+          echo "Applying taskset to Host PID: $PID"
+          # -a applies to all threads, -p operates on an existing PID, -c specifies CPU list
+          nsenter -t 1 -m -u -p -- \
+            taskset -a -p -c "$CPUSET" "$PID"
+        done
+
+        sleep 100
       done
-
-      exec sleep infinity
       
     securityContext:
       privileged: true

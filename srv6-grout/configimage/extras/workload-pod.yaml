@@ -1,3 +1,9 @@
+# This static pod requests isolated CPUs from the kubelet and uses them to update the affinity
+# of the grout.slice. It uses two containers to shape the control and datapath threads.
+# Two containers are used to ensure that the affinity is updated after a grout restart.
+# The datapath-shape container reads the exclusive CPUs assigned to this container and saves them to a file.
+# The control-shape container uses the file to update the datapath affinity of the grout.instance.
+# The control affinity is read from the systemd.cpu_affinity kernel command line argument.
 apiVersion: v1
 kind: Pod
 metadata:
@@ -5,10 +11,11 @@ metadata:
   labels:
     app: openperouter
     component: workload-test
-#  annotations:
-#    cpu-quota.crio.io: "disable"
-#    cpu-load-balancing.crio.io: "disable"
-#    irq-load-balancing.crio.io: "disable"
+  annotations:
+    # Do not set `cpu-load-balancing.crio.io: "disable"`, as the Node-Tuning Operator would create a separated
+    # cpuset.cpus.partition, breaking the dinamyc affinity pinning 
+    cpu-quota.crio.io: "disable"
+    irq-load-balancing.crio.io: "disable"
 spec:
   priorityClassName: system-node-critical
   runtimeClassName: performance-grout-performance
@@ -29,19 +36,14 @@ spec:
       done
       echo "Grout is ready"
 
-      # Read the exclusive CPUs assigned to this container by kubelet.
-      # In a privileged container, /sys/fs/cgroup/cpuset.cpus.effective
-      # reflects the parent cgroup (all host CPUs). Read from the
-      # container's own cgroup path to get the guaranteed CPUs.
-      #CGROUP=$(cat /proc/self/cgroup | cut -d: -f3)
-      #CONTROL=$(cat /sys/fs/cgroup"$CGROUP"/cpuset.cpus)
-      
       echo "Waiting for /shared/datapath.txt to be present..."
       while [ ! -f /shared/datapath.txt ]; do
         sleep 1
       done
       DATAPATH_TARGET=$(cat /shared/datapath.txt)
 
+      # CPU pinning must happen in a loop to ensure the affinity is updated after
+      # a grout restart.
       while true; do
         sleep 2
 
@@ -94,14 +96,10 @@ spec:
     - name: shared-data
       mountPath: /shared
   - name: datapath-shape
-    image: quay.io/redhat-user-workloads/telco-5g-tenant/openperouter-operator-edge-5-0:on-pr-4ce8bce452201b29c259cbf37e1fe460aa305239
+    image: quay.io/redhat-user-workloads/telco-5g-tenant/openperouter-operator-edge-5-0:on-pr-0e81b6c4ce9fea975946e2c6ad6e3f6f8dbf96d4
     command: ["/bin/bash", "-xc"]
     args:
     - |
-      # Read the exclusive CPUs assigned to this container by kubelet.
-      # In a privileged container, /sys/fs/cgroup/cpuset.cpus.effective
-      # reflects the parent cgroup (all host CPUs). Read from the
-      # container's own cgroup path to get the guaranteed CPUs.
       date
       CGROUP=$(cat /proc/self/cgroup | cut -d: -f3)
       DATAPATH=$(cat /sys/fs/cgroup"$CGROUP"/cpuset.cpus)

@@ -12,7 +12,7 @@ Pod=routerpod.pod
 PodmanArgs=--privileged
 PodmanArgs=--env-file=/etc/openperouter/openperouter.env
 Entrypoint=/usr/bin/bash
-Exec=-c "while true; do taskset -cp 1; sleep 100; done"
+Exec=-c "while true; do taskset -cp $$; sleep 100; done"
 
 [Service]
 Slice=container1.slice
