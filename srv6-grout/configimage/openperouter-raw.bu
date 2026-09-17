@@ -126,37 +126,6 @@ storage:
       overwrite: true
       contents:
         local: grout.container
-    # Test
-    - path: /etc/containers/systemd/c1.container
-      mode: 0644
-      overwrite: true
-      contents:
-        local: c1.container
-    - path: /etc/containers/systemd/c2.container
-      mode: 0644
-      overwrite: true
-      contents:
-        local: c2.container
-    - path: /etc/containers/systemd/c3.container
-      mode: 0644
-      overwrite: true
-      contents:
-        local: c3.container
-    - path: /etc/kubernetes/manifests/pod1.yaml
-      mode: 0644
-      overwrite: true
-      contents:
-        local: pod1.yaml
-    - path: /etc/kubernetes/manifests/pod2.yaml
-      mode: 0644
-      overwrite: true
-      contents:
-        local: pod2.yaml
-    - path: /etc/kubernetes/manifests/pod3.yaml
-      mode: 0644
-      overwrite: true
-      contents:
-        local: pod3.yaml
     - path: /etc/sysctl.d/99-no-slaac.conf
       mode: 0644
       overwrite: true
