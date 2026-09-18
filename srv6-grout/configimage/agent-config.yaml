@@ -87,11 +87,13 @@ hosts:
       type: ethernet
       state: up
       mtu: 1800
+      # Not working. see https://github.com/nmstate/nmstate/issues/3220
       alt-names:
       - name: underlayvf
     - name: ens1f0v1
       type: ethernet
       state: up
+      # Not working. see https://github.com/nmstate/nmstate/issues/3220
       alt-names:
       - name: trunkvf
     - name: ens1f0v2 # host
@@ -192,11 +194,13 @@ hosts:
       type: ethernet
       state: up
       mtu: 1800
+      # Not working. see https://github.com/nmstate/nmstate/issues/3220
       alt-names:
       - name: underlayvf
     - name: ens1f0v1
       type: ethernet
       state: up
+      # Not working. see https://github.com/nmstate/nmstate/issues/3220
       alt-names:
       - name: trunkvf
     - name: ens1f0v2 # host
@@ -296,11 +300,13 @@ hosts:
       type: ethernet
       state: up
       mtu: 1800
+      # Not working. see https://github.com/nmstate/nmstate/issues/3220
       alt-names:
       - name: underlayvf
     - name: eno12399v1
       type: ethernet
       state: up
+      # Not working. see https://github.com/nmstate/nmstate/issues/3220
       alt-names:
       - name: trunkvf
     - name: eno12399v2 # host
