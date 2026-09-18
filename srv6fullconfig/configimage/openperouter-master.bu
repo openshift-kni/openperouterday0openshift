@@ -1,0 +1,148 @@
+variant: openshift
+version: 4.20.0
+metadata:
+  name: 99-master-openperouter
+  labels:
+    machineconfiguration.openshift.io/role: master
+storage:
+  files:
+    # --- Rawconfig scripts (mode 0755) ---
+    - path: /usr/local/bin/generate-config.sh
+      mode: 0755
+      overwrite: true
+      contents:
+        local: common/generate-config.sh
+    - path: /usr/local/bin/can_start.sh
+      mode: 0755
+      overwrite: true
+      contents:
+        local: quadlets/can_start.sh
+    - path: /var/lib/openperouter/can_start.sh
+      mode: 0755
+      overwrite: true
+      contents:
+        local: quadlets/can_start.sh
+    # --- Empty openpe_config.yaml (controller needs it to exist) ---
+    - path: /var/lib/openperouter/configs/openpe_config.yaml
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: ""
+    # --- Rawconfig templates and env (mode 0644) ---
+    - path: /etc/openperouter/templates/openpe_master.yaml
+      mode: 0644
+      overwrite: true
+      contents:
+        local: config/openpe_master.yaml
+    - path: /etc/openperouter/templates/openpe_worker.yaml
+      mode: 0644
+      overwrite: true
+      contents:
+        local: config/openpe_worker.yaml
+    # --- FRR daemons file (enables isisd for ISIS + SRv6) ---
+    - path: /etc/perouter/daemons
+      mode: 0644
+      overwrite: true
+      contents:
+        local: quadlets/daemons
+    # --- Node index configuration ---
+    - path: /var/lib/openperouter/node-config.yaml
+      mode: 0644
+      overwrite: true
+      contents:
+        local: config/node-config.yaml
+    # --- Shared installer patching script ---
+    - path: /usr/local/bin/patch-installer-config.sh
+      mode: 0755
+      overwrite: true
+      contents:
+        local: common/patch-installer-config.sh
+    # --- Quadlet files ---
+    - path: /etc/containers/systemd/controllerpod.pod
+      mode: 0644
+      overwrite: true
+      contents:
+        local: quadlets/controllerpod.pod
+    - path: /etc/containers/systemd/controller.container
+      mode: 0644
+      overwrite: true
+      contents:
+        local: quadlets/controller.container
+    - path: /etc/containers/systemd/routerpod.pod
+      mode: 0644
+      overwrite: true
+      contents:
+        local: quadlets/routerpod.pod
+    - path: /etc/containers/systemd/frr.container
+      mode: 0644
+      overwrite: true
+      contents:
+        local: quadlets/frr.container
+    - path: /etc/containers/systemd/reloader.container
+      mode: 0644
+      overwrite: true
+      contents:
+        local: quadlets/reloader.container
+    - path: /etc/containers/systemd/frr-sockets.volume
+      mode: 0644
+      overwrite: true
+      contents:
+        local: quadlets/frr-sockets.volume
+systemd:
+  units:
+    # --- Quadlet services ---
+    - name: controllerpod.service
+      enabled: true
+    - name: controller.service
+      enabled: true
+    - name: routerpod.service
+      enabled: true
+    - name: frr.service
+      enabled: true
+    - name: reloader.service
+      enabled: true
+    - name: frr-sockets.service
+      enabled: true
+    # --- Rawconfig systemd services ---
+    - name: generate-config.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=OpenPERouter Configuration Generator
+        Documentation=https://github.com/openperouter/openperouter
+        After=network-online.target routerpod-pod.service frr.service
+        Requires=routerpod-pod.service
+        Wants=network-online.target
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        User=root
+        Group=root
+        ExecStartPre=/usr/local/bin/can_start.sh
+        ExecStart=/usr/local/bin/generate-config.sh
+        StandardOutput=journal
+        StandardError=journal
+        SyslogIdentifier=generate-config
+        TimeoutStartSec=60
+        TimeoutStopSec=10
+
+        [Install]
+        WantedBy=multi-user.target
+    # --- Shared installer patching service ---
+    - name: enable-virtual-interfaces.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Patch Assisted Service installer config for openperouter
+        Before=assisted-service-pod.service
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/bin/patch-installer-config.sh
+        Restart=on-failure
+        RestartSec=2
+        RemainAfterExit=yes
+
+        [Install]
+        WantedBy=assisted-service-pod.service
