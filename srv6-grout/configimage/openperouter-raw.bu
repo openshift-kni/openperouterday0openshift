@@ -7,11 +7,22 @@ metadata:
 storage:
   files:
 
-    - path: /var/lib/openperouter/configs/master-0.sno-lab.example.com.yaml
+    - path: /usr/local/bin/can_start.sh
+      mode: 0755
+      overwrite: true
+      contents:
+        local: can_start.sh
+    - path: /var/lib/openperouter/can_start.sh
+      mode: 0755
+      overwrite: true
+      contents:
+        local: can_start.sh
+
+    - path: /var/lib/openperouter/configs/default_config.yaml
       mode: 0644
       overwrite: true
       contents:
-        local: openpe_master-0.sno-lab.example.com.yaml
+        local: openpe_default_config.yaml
 
     - path: /var/lib/openperouter/configs/master-1.sno-lab.example.com.yaml
       mode: 0644
@@ -25,27 +36,6 @@ storage:
       contents:
         local: openpe_master-2.sno-lab.example.com.yaml
 
-    - path: /usr/local/bin/can_start.sh
-      mode: 0755
-      overwrite: true
-      contents:
-        local: can_start.sh
-    - path: /var/lib/openperouter/can_start.sh
-      mode: 0755
-      overwrite: true
-      contents:
-        local: can_start.sh
-    # --- Rawconfig templates and env (mode 0644) ---
-    - path: /etc/openperouter/templates/openpe_evpn.yaml.template
-      mode: 0644
-      overwrite: true
-      contents:
-        local: openpe_evpn.yaml.template
-    - path: /etc/openperouter/templates/openpe_evpn.yaml_rr.template
-      mode: 0644
-      overwrite: true
-      contents:
-        local: openpe_evpn.yaml_rr.template
     - path: /etc/openperouter/openperouter.env
       mode: 0644
       overwrite: true
@@ -135,38 +125,7 @@ systemd:
         Type=oneshot
         ExecStart=/usr/bin/systemctl restart controllerpod-pod.service routerpod-pod.service
 
-    # --- Watch for kubeconfig and trigger manifest apply ---
-    - name: apply-manifests.path
-      enabled: true
-      contents: |
-        [Unit]
-        Description=Watch for hostbridge kubeconfig
-
-        [Path]
-        PathExists=/etc/kubernetes/static-pod-resources/kube-apiserver-certs/secrets/node-kubeconfigs/localhost.kubeconfig
-
-        [Install]
-        WantedBy=multi-user.target
-    # --- Apply DaemonSet manifests after kubelet is ready ---
-    - name: apply-manifests.service
-      contents: |
-        [Unit]
-        Description=Apply OpenPERouter DaemonSet manifests
-        After=kubelet.service
-
-        [Service]
-        Type=oneshot
-        RemainAfterExit=yes
-        EnvironmentFile=-/etc/openperouter/openperouter.env
-        ExecStart=/usr/local/bin/apply-manifests.sh
-        StandardOutput=journal
-        StandardError=journal
-        SyslogIdentifier=apply-manifests
-        TimeoutStartSec=600
-        TimeoutStopSec=10
-
-        [Install]
-        WantedBy=multi-user.target
+    
     # --- Shared installer patching service ---
     - name: enable-virtual-interfaces.service
       enabled: true

@@ -32,6 +32,10 @@ nodeIndex:
 logLevel: debug
 EOF
 
+
+# The PERotuer controller reads all the configs starting with `openpe_`
+cp /var/lib/openperouter/configs/default_config.yaml /var/lib/openperouter/configs/openpe_config.yaml
+
 # Override the default config with a node-specific config if it exists
 if [ -f "/var/lib/openperouter/configs/${NODE_NAME}.yaml" ]; then
   cp "/var/lib/openperouter/configs/${NODE_NAME}.yaml" "/var/lib/openperouter/configs/openpe_config.yaml"
