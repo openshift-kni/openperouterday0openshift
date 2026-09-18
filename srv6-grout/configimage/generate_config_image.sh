@@ -17,11 +17,6 @@
 
 set -euo pipefail
 
-if ! echo '{}' | yq -y '.' > /dev/null 2>&1; then
-    echo "ERROR: python yq required (pip install yq)" >&2
-    exit 1
-fi
-
 SCRIPTDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APPLIANCE_CACHE="${SCRIPTDIR}/../appliance/cache"
 
@@ -54,8 +49,10 @@ pull_secret="$(jq -c . "${pull_secret_file}")"
 yq -y ".pullSecret = $(echo "${pull_secret}" | jq -R .)" \
     "${SCRIPTDIR}/install-config.yaml.base" > "${config_image_dir}/install-config.yaml"
 
+echo "SSH key file: ${ssh_key_file}"
 if [[ -n "${ssh_key_file}" && -f "${ssh_key_file}" ]]; then
     ssh_key="$(cat "${ssh_key_file}")"
+    echo "SSH key: ${ssh_key}"
     yq -y ".sshKey = \"${ssh_key}\"" "${config_image_dir}/install-config.yaml" \
         > "${config_image_dir}/install-config.yaml.tmp" \
         && mv "${config_image_dir}/install-config.yaml.tmp" "${config_image_dir}/install-config.yaml"

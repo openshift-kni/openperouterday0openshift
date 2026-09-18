@@ -11,7 +11,7 @@
 set -euo pipefail
 
 SCRIPTDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-EXTRASDIR="$(cd "${SCRIPTDIR}/../extras" && pwd)"
+EXTRASDIR="$(cd "${SCRIPTDIR}/extras" && pwd)"
 
 output_dir="$1"
 mkdir -p "${output_dir}"
@@ -38,6 +38,12 @@ compile_bu() {
 echo "==> Generating MachineConfig manifests into ${output_dir}..."
 
 compile_bu openperouter-raw.bu 99 openperouter
+compile_bu second-boot-kargs.bu 98 second-boot-kargs
 compile_bu registry.bu 01 registry
+
+if [[ -f "${SCRIPTDIR}/performance-profile.yaml" ]]; then
+    echo "  performance-profile.yaml -> ${output_dir}/"
+    cp "${SCRIPTDIR}/performance-profile.yaml" "${output_dir}/"
+fi
 
 echo "==> MachineConfig manifests generated."

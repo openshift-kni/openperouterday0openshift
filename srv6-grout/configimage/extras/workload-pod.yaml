@@ -1,0 +1,134 @@
+# This static pod requests isolated CPUs from the kubelet and uses them to update the affinity
+# of the grout.slice. It uses two containers to shape the control and datapath threads.
+# Two containers are used to ensure that the affinity is updated after a grout restart.
+# The datapath-shape container reads the exclusive CPUs assigned to this container and saves them to a file.
+# The control-shape container uses the file to update the datapath affinity of the grout.instance.
+# The control affinity is read from the systemd.cpu_affinity kernel command line argument.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: workload-test
+  labels:
+    app: openperouter
+    component: workload-test
+  annotations:
+    # Do not set `cpu-load-balancing.crio.io: "disable"`, as the Node-Tuning Operator would create a separated
+    # cpuset.cpus.partition, breaking the dinamyc affinity pinning 
+    cpu-quota.crio.io: "disable"
+    irq-load-balancing.crio.io: "disable"
+spec:
+  priorityClassName: system-node-critical
+  runtimeClassName: performance-grout-performance
+  terminationGracePeriodSeconds: 10
+  hostPID: true
+  containers:
+  - name: control-shape
+    image: quay.io/redhat-user-workloads/telco-5g-tenant/openperouter-operator-edge-5-0:on-pr-0e81b6c4ce9fea975946e2c6ad6e3f6f8dbf96d4
+    env:
+    - name: GROUT_SOCK_PATH
+      value: /run/grout/grout.sock
+    command: ["/bin/bash", "-xc"]
+    args:
+    - |
+      echo "Waiting for grout..."
+      until grcli -e </dev/null >/dev/null 2>&1; do
+          sleep 10
+      done
+      echo "Grout is ready"
+
+      echo "Waiting for /shared/datapath.txt to be present..."
+      while [ ! -f /shared/datapath.txt ]; do
+        sleep 1
+      done
+      DATAPATH_TARGET=$(cat /shared/datapath.txt)
+
+      # CPU pinning must happen in a loop to ensure the affinity is updated after
+      # a grout restart.
+      while true; do
+        sleep 2
+
+        CONTROL_CURRENT=$(grcli affinity cpus show | grep control | awk '{print $2}')
+        DATAPATH_CURRENT=$(grcli affinity cpus show | grep datapath | awk '{print $2}')
+        CONTROL_TARGET=$(grep -oP 'systemd\.cpu_affinity=\K\S+' /proc/cmdline)
+        if [ -z "$CONTROL_TARGET" ]; then
+          echo "No control target found in /proc/cmdline"
+          sleep 100
+          continue
+        fi
+
+        if [ "$CONTROL_CURRENT" != "$CONTROL_TARGET" ]; then
+          date
+
+          echo "Control CPU affinity mismatch: $CONTROL_CURRENT != $CONTROL_TARGET"
+
+          # Expand grout.slice to include both reserved and pod-guaranteed CPUs.
+          echo "Updating grout.slice: AllowedCPUs=$CONTROL_TARGET,$DATAPATH_TARGET"
+          nsenter -t 1 -m -u -p -- \
+            systemctl --runtime set-property grout.slice AllowedCPUs="$CONTROL_TARGET,$DATAPATH_TARGET"
+
+          echo "Repinning grout: datapath=$DATAPATH_TARGET control=$CONTROL_TARGET"
+
+          # Force destroy and recreate datapath threads. The performance
+          # profile may have repinned them and grout will not recreate
+          # existing threads.
+          grcli affinity cpus show
+          grcli affinity cpus set control 0 datapath 1
+          grcli affinity cpus show
+          grcli affinity cpus set control "$CONTROL_TARGET" datapath "$DATAPATH_TARGET"
+          grcli affinity cpus show
+        fi
+
+      done
+      
+      exec sleep infinity
+    securityContext:
+      privileged: true
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "100Mi"
+      limits:
+        cpu: "100m"
+        memory: "100Mi"
+    volumeMounts:
+    - name: grout-sock
+      mountPath: /run/grout
+    - name: shared-data
+      mountPath: /shared
+  - name: datapath-shape
+    image: quay.io/redhat-user-workloads/telco-5g-tenant/openperouter-operator-edge-5-0:on-pr-0e81b6c4ce9fea975946e2c6ad6e3f6f8dbf96d4
+    command: ["/bin/bash", "-xc"]
+    args:
+    - |
+      date
+      CGROUP=$(cat /proc/self/cgroup | cut -d: -f3)
+      DATAPATH=$(cat /sys/fs/cgroup"$CGROUP"/cpuset.cpus)
+      echo $DATAPATH > /shared/datapath.txt
+      exec sleep infinity
+      
+    securityContext:
+      privileged: true
+    resources:
+      requests:
+        cpu: "4"
+        memory: "2Gi"
+        hugepages-1Gi: "2Gi"
+      limits:
+        cpu: "4"
+        memory: "2Gi"
+        hugepages-1Gi: "2Gi"
+    volumeMounts:
+    - name: hugepages
+      mountPath: /dev/hugepages
+    - name: shared-data
+      mountPath: /shared
+  volumes:
+  - name: shared-data
+    emptyDir: {}
+  - name: grout-sock
+    hostPath:
+      path: /run/grout
+      type: DirectoryOrCreate
+  - name: hugepages
+    emptyDir:
+      medium: HugePages-1Gi

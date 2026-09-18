@@ -1,150 +1,164 @@
 variant: openshift
 version: 4.20.0
 metadata:
-  name: 99-worker-openperouter
+  name: 99-master-openperouter
   labels:
-    machineconfiguration.openshift.io/role: worker
+    machineconfiguration.openshift.io/role: master
 storage:
   files:
-    # --- Rawconfig scripts (mode 0755) ---
-    - path: /usr/local/bin/openperouter-common.sh
-      mode: 0755
+    # --- NM dispatcher (VF binding + address derivation) ---
+    - path: /etc/NetworkManager/dispatcher.d/99-perouter
+      mode: 0750
       overwrite: true
       contents:
-        local: rawconfig/openperouter-common.sh
+        local: nmdispatcher.sh
+    # --- Scripts (mode 0755) ---
     - path: /usr/local/bin/setup-underlay.sh
       mode: 0755
       overwrite: true
       contents:
-        local: rawconfig/setup-underlay.sh
+        local: setup-underlay.sh
     - path: /usr/local/bin/setup-network.sh
       mode: 0755
       overwrite: true
       contents:
-        local: rawconfig/setup-network.sh
+        local: setup-network.sh
     - path: /usr/local/bin/generate-config.sh
       mode: 0755
       overwrite: true
       contents:
-        local: rawconfig/generate-config.sh
+        local: generate-config.sh
     - path: /usr/local/bin/bridge-refresher.sh
       mode: 0755
       overwrite: true
       contents:
-        local: rawconfig/bridge-refresher.sh
+        local: bridge-refresher.sh
+    - path: /usr/local/bin/perouter-bind.sh
+      mode: 0755
+      overwrite: true
+      contents:
+        local: perouter-bind.sh
+    - path: /usr/local/bin/perouter-host-dispatch.sh
+      mode: 0755
+      overwrite: true
+      contents:
+        local: perouter-host-dispatch.sh
     - path: /usr/local/bin/can_start.sh
       mode: 0755
       overwrite: true
       contents:
-        local: quadlets/can_start.sh
+        local: can_start.sh
     - path: /var/lib/openperouter/can_start.sh
       mode: 0755
       overwrite: true
       contents:
-        local: quadlets/can_start.sh
-    # --- Empty openpe_config.yaml (controller needs it to exist) ---
-    - path: /var/lib/openperouter/configs/openpe_config.yaml
-      mode: 0644
-      overwrite: true
-      contents:
-        inline: ""
+        local: can_start.sh
     # --- Rawconfig templates and env (mode 0644) ---
     - path: /etc/openperouter/templates/openpe_evpn.yaml.template
       mode: 0644
       overwrite: true
       contents:
-        local: rawconfig/openpe_evpn.yaml.template
+        local: openpe_evpn.yaml.template
     - path: /etc/openperouter/templates/openpe_evpn.yaml_rr.template
       mode: 0644
       overwrite: true
       contents:
-        local: rawconfig/openpe_evpn.yaml_rr.template
-    - path: /etc/openperouter/vpn-setup.env
+        local: openpe_evpn.yaml_rr.template
+    - path: /etc/openperouter/openperouter.env
       mode: 0644
       overwrite: true
       contents:
-        local: rawconfig/vpn-setup.env
+        local: openperouter.env
     # --- FRR daemons file (enables isisd for ISIS + SRv6) ---
     - path: /etc/perouter/daemons
       mode: 0644
       overwrite: true
       contents:
-        local: quadlets/daemons
-    # --- Node index script ---
-    - path: /usr/local/bin/openperouter-node-index.sh
-      mode: 0755
-      overwrite: true
-      contents:
-        local: common/openperouter-node-index.sh
+        local: daemons
     # --- Shared installer patching script ---
     - path: /usr/local/bin/patch-installer-config.sh
       mode: 0755
       overwrite: true
       contents:
-        local: common/patch-installer-config.sh
+        local: patch-installer-config.sh
+    # --- DaemonSet manifests (applied after kubelet is ready) ---
+    - path: /var/lib/openperouter/manifests/namespace.yaml
+      mode: 0644
+      overwrite: true
+      contents:
+        local: namespace.yaml
+    - path: /var/lib/openperouter/manifests/grout-daemonset.yaml
+      mode: 0644
+      overwrite: true
+      contents:
+        local: grout-daemonset.yaml
+    - path: /usr/local/bin/apply-manifests.sh
+      mode: 0755
+      overwrite: true
+      contents:
+        local: apply-manifests.sh
     # --- Quadlet files ---
     - path: /etc/containers/systemd/controllerpod.pod
       mode: 0644
       overwrite: true
       contents:
-        local: quadlets/controllerpod.pod
+        local: controllerpod.pod
     - path: /etc/containers/systemd/controller.container
       mode: 0644
       overwrite: true
       contents:
-        local: quadlets/controller.container
+        local: controller.container
     - path: /etc/containers/systemd/routerpod.pod
       mode: 0644
       overwrite: true
       contents:
-        local: quadlets/routerpod.pod
+        local: routerpod.pod
     - path: /etc/containers/systemd/frr.container
       mode: 0644
       overwrite: true
       contents:
-        local: quadlets/frr.container
+        local: frr.container
     - path: /etc/containers/systemd/reloader.container
       mode: 0644
       overwrite: true
       contents:
-        local: quadlets/reloader.container
-    - path: /etc/containers/systemd/frr-sockets.volume
+        local: reloader.container
+    - path: /etc/containers/systemd/grout.container
       mode: 0644
       overwrite: true
       contents:
-        local: quadlets/frr-sockets.volume
+        local: grout.container
+    - path: /etc/sysctl.d/99-no-slaac.conf
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: |
+          net.ipv6.conf.default.accept_ra = 0
 systemd:
   units:
     # --- Quadlet services ---
-    - name: controllerpod.service
-      enabled: true
-    - name: controller.service
-      enabled: true
     - name: routerpod.service
       enabled: true
-    - name: frr.service
-      enabled: true
-    - name: reloader.service
-      enabled: true
-    - name: frr-sockets.service
-      enabled: true
     # --- Rawconfig systemd services ---
+    - name: grout.slice
+      enabled: true
+      contents: |
+        [Slice]
+        AllowedCPUs=0,1
+        [Install]
+        WantedBy=default.target
     - name: setup-underlay.service
       enabled: true
       contents: |
         [Unit]
-        Description=OpenPERouter Underlay Setup
+        Description=OpenPERouter Underlay Setup (create grout ports)
         Documentation=https://github.com/openperouter/openperouter
-        After=network-online.target routerpod-pod.service frr.service
-        Requires=routerpod-pod.service
-        Wants=network-online.target
+        After=grout.service
+        Requires=grout.service
 
         [Service]
         Type=oneshot
         RemainAfterExit=yes
-        User=root
-        Group=root
-        EnvironmentFile=-/etc/openperouter/vpn-setup.env
         ExecStartPre=/usr/local/bin/can_start.sh
         ExecStart=/usr/local/bin/setup-underlay.sh
         StandardOutput=journal
@@ -169,7 +183,7 @@ systemd:
         RemainAfterExit=yes
         User=root
         Group=root
-        EnvironmentFile=-/etc/openperouter/vpn-setup.env
+        EnvironmentFile=-/etc/openperouter/openperouter.env
         ExecStart=/usr/local/bin/setup-network.sh
         StandardOutput=journal
         StandardError=journal
@@ -195,7 +209,7 @@ systemd:
         RemainAfterExit=yes
         User=root
         Group=root
-        EnvironmentFile=-/etc/openperouter/vpn-setup.env
+        EnvironmentFile=-/etc/openperouter/openperouter.env
         ExecStart=/usr/local/bin/generate-config.sh
         StandardOutput=journal
         StandardError=journal
@@ -219,7 +233,7 @@ systemd:
         Type=simple
         User=root
         Group=root
-        EnvironmentFile=-/etc/openperouter/vpn-setup.env
+        EnvironmentFile=-/etc/openperouter/openperouter.env
         ExecStart=/usr/local/bin/bridge-refresher.sh
         Restart=always
         RestartSec=5
@@ -229,20 +243,35 @@ systemd:
 
         [Install]
         WantedBy=multi-user.target
-    # --- Node index service ---
-    - name: openperouter-node-index.service
+    # --- Watch for kubeconfig and trigger manifest apply ---
+    - name: apply-manifests.path
       enabled: true
       contents: |
         [Unit]
-        Description=Set OpenPERouter nodeIndex from bridge IP
-        After=network-online.target
-        Before=controllerpod.service routerpod.service
-        Wants=network-online.target
+        Description=Watch for hostbridge kubeconfig
+
+        [Path]
+        PathExists=/etc/kubernetes/static-pod-resources/kube-apiserver-certs/secrets/node-kubeconfigs/localhost.kubeconfig
+
+        [Install]
+        WantedBy=multi-user.target
+    # --- Apply DaemonSet manifests after kubelet is ready ---
+    - name: apply-manifests.service
+      contents: |
+        [Unit]
+        Description=Apply OpenPERouter DaemonSet manifests
+        After=kubelet.service setup-underlay.service
 
         [Service]
         Type=oneshot
-        ExecStart=/usr/local/bin/openperouter-node-index.sh
         RemainAfterExit=yes
+        EnvironmentFile=-/etc/openperouter/openperouter.env
+        ExecStart=/usr/local/bin/apply-manifests.sh
+        StandardOutput=journal
+        StandardError=journal
+        SyslogIdentifier=apply-manifests
+        TimeoutStartSec=600
+        TimeoutStopSec=10
 
         [Install]
         WantedBy=multi-user.target

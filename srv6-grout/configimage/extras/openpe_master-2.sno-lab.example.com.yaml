@@ -1,0 +1,80 @@
+rawfrrconfigs:
+  - priority: 100
+    rawConfig: |
+      interface underlay0
+        ipv6 router isis ISIS
+        isis network point-to-point
+      exit
+
+      router isis ISIS
+        topology ipv6-unicast
+      exit
+
+      segment-routing
+        srv6
+          encapsulation
+            ! https://github.com/openperouter/openperouter/blob/main/internal/frr/templates/segmentrouting.tmpl#L4
+            ! gorut put VTEP on underlay0 interfaces instead of loopback
+            source-address fc00:100::4
+          exit
+        exit
+      exit
+
+l3vpns:
+  - name: red
+    vrf: red
+    rdAssignedNumber: 2
+    importRTs:
+      - "65500:2"
+    exportRTs:
+      - "65500:2"
+
+l2vnis:
+  - vni: 210
+    routingDomain:
+      type: L3VPN
+      l3vpn: { name: red }
+    vxlanport: 4789
+    gatewayIPs:
+      - "192.168.110.1/24" # this need to stay /24, so the network is advertised via l3vpn
+      - "fd00:110::1/64"
+    sriovVFPair:
+      netlinkName: eno12399v1
+      vlan: 42   # The same as in agent-config.yaml
+      acceleratedConfig: {}
+
+underlays:
+  - asn: 65500
+    routerIDCIDR: 10.0.0.0/24
+    interfaces:
+      - type: NetworkDevice
+        networkDevice:
+          interfaceName: eno12399v0
+          acceleratedConfig:
+            portName: underlay0
+    
+    neighbors:
+      - type: Internal
+        address: "fc00:0:14::1"
+      - type: Internal
+        address: "fc00:100::2"  # master-0 (RR)
+        addressFamilies:
+          - type: ipv4unicast
+          - type: ipv6unicast
+          - type: evpn
+
+    tunnelEndpoint:
+      cidrs:
+        - "fc00:100::0/112"
+    isis:
+      baseNet: "49.0001.0000.0000.0001.00"
+      level: 1
+      interfaces:
+        - name: underlay0
+          ipFamily: DualStack
+    srv6:
+      encapBehavior: "H.Encaps.Red"
+      locator:
+        basePrefix: "fd00:0:0::/48"
+        format: "usid-f3216"
+
