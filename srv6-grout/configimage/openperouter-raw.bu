@@ -6,12 +6,6 @@ metadata:
     machineconfiguration.openshift.io/role: master
 storage:
   files:
-    # --- NM dispatcher (VF binding + address derivation) ---
-    - path: /etc/NetworkManager/dispatcher.d/99-perouter
-      mode: 0750
-      overwrite: true
-      contents:
-        local: nmdispatcher.sh
 
     - path: /var/lib/openperouter/configs/master-0.sno-lab.example.com.yaml
       mode: 0644
@@ -31,11 +25,6 @@ storage:
       contents:
         local: openpe_master-2.sno-lab.example.com.yaml
 
-    - path: /usr/local/bin/bridge-refresher.sh
-      mode: 0755
-      overwrite: true
-      contents:
-        local: bridge-refresher.sh
     - path: /usr/local/bin/can_start.sh
       mode: 0755
       overwrite: true
@@ -74,27 +63,11 @@ storage:
       overwrite: true
       contents:
         local: patch-installer-config.sh
-    # --- DaemonSet manifests (applied after kubelet is ready) ---
-    - path: /var/lib/openperouter/manifests/namespace.yaml
-      mode: 0644
-      overwrite: true
-      contents:
-        local: namespace.yaml
-    - path: /var/lib/openperouter/manifests/grout-daemonset.yaml
-      mode: 0644
-      overwrite: true
-      contents:
-        local: grout-daemonset.yaml
     - path: /etc/kubernetes/manifests/workload-pod.yaml
       mode: 0644
       overwrite: true
       contents:
         local: workload-pod.yaml
-    - path: /usr/local/bin/apply-manifests.sh
-      mode: 0755
-      overwrite: true
-      contents:
-        local: apply-manifests.sh
     # --- Quadlet files ---
     - path: /etc/containers/systemd/controllerpod.pod
       mode: 0644
@@ -151,31 +124,7 @@ systemd:
         [Install]
         WantedBy=default.target
 
-    # --- Bridge refresher (mimics OpenPERouter bridge refresher) ---
-    - name: bridge-refresher.service
-      enabled: true
-      contents: |
-        [Unit]
-        Description=OpenPERouter Bridge Refresher
-        Documentation=https://github.com/openperouter/openperouter
-        After=routerpod.service 
-        Requires=routerpod.service.service
-
-        [Service]
-        Type=simple
-        User=root
-        Group=root
-        EnvironmentFile=-/etc/openperouter/openperouter.env
-        ExecStart=/usr/local/bin/bridge-refresher.sh
-        Restart=always
-        RestartSec=5
-        StandardOutput=journal
-        StandardError=journal
-        SyslogIdentifier=bridge-refresher
-
-        [Install]
-        WantedBy=multi-user.target
-
+    # Restart bot router and controller pods. This is needed in case of Grout failure to trigger a controller reconfiguration
     - name: perouter-restart-pods.service
       enabled: false
       contents: |
@@ -251,3 +200,20 @@ systemd:
 
         [Install]
         WantedBy=multi-user.target
+    
+    - name: load-vfio-pci.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Load vfio-pci kernel module
+        After=local-fs-pre.target
+        Wants=local-fs-pre.target
+
+        [Service]
+        Type=oneshot
+        ExecStart=modprobe vfio-pci
+        RemainAfterExit=true
+
+        [Install]
+        WantedBy=multi-user.target
+

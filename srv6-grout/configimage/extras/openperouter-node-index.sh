@@ -36,6 +36,3 @@ EOF
 if [ -f "/var/lib/openperouter/configs/${NODE_NAME}.yaml" ]; then
   cp "/var/lib/openperouter/configs/${NODE_NAME}.yaml" "/var/lib/openperouter/configs/openpe_config.yaml"
 fi
-
-# TODO: find a better place for this
-modprobe vfio-pci

@@ -1,5 +1,6 @@
 # agent-config.yaml - Per-node hardware configuration
 #
+# TODO: check this commented section
 # Each node needs:
 #   - Two PFs with total-vfs: 16 and mtu: 1800 (for VXLAN/SRv6 overhead)
 #   - PF0 VF0: grout underlay port (auto-detected by 99-perouter dispatcher)
