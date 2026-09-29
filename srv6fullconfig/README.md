@@ -53,10 +53,33 @@ FRR config files live in `extras/config/`:
 `generate-config.sh` selects master or worker configs based on the hostname
 and copies the matching YAML files.
 
+## Grout DPDK Datapath
+
+Use the same `GROUT_DATAPATH` value for both ISO builds. Leave it unset for the
+kernel datapath, set it to `tap` for Grout TAP ports with the default
+[`configimage/agent-config.yaml`](configimage/agent-config.yaml) (`enp2s0` and
+`br0`), or set it to `hw` for SR-IOV VFs. For `hw`, adapt
+[`configimage/agent-config-grout-hw.sample.yaml`](configimage/agent-config-grout-hw.sample.yaml)
+to your NICs and copy it to `configimage/agent-config.yaml` before building the
+config-image ISO.
+
+Both grout modes load FRR's `dplane_grout`, pass `--datapath=grout` to the
+controller, reserve eight 1 GiB hugepages, enable IOMMU, and apply the master
+performance profile. `tap` leaves `acceleratedConfig` unset, so the controller
+attaches grout ports through TAP devices. `hw` uses `acceleratedConfig`, enables
+VFIO, and applies the CPU pinning workload. Adjust the profile's CPU and NUMA
+values to the target hardware. Edit `openpe_master-hw.yaml` and
+`openpe_worker-hw.yaml` for the hardware mode; the unsuffixed templates serve
+the kernel and TAP modes. Set `OPENPEROUTER_IMAGE` for both ISO builds to use
+a different image in the appliance config, quadlets, and workload pod. It
+defaults to `quay.io/redhat-user-workloads/telco-5g-tenant/openperouter-operator-edge-5-0:latest`.
+
 ## Building
 
 - **Appliance ISO**: [`appliance/generate_appliance.sh`](appliance/generate_appliance.sh) `<pull_secret_file>`
 - **Config-image ISO**: [`configimage/generate_config_image.sh`](configimage/generate_config_image.sh) `<pull_secret_file>`
+
+For example, prefix both commands with `GROUT_DATAPATH=tap` (or `hw`).
 
 ## Configuration
 
